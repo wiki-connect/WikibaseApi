@@ -24,7 +24,7 @@ class WikibaseApi {
 	 */
 	public function postRequest( string $action, array $params, EditInfo $editInfo = null ) {
 		if ( $editInfo !== null ) {
-			$params = array_merge( $this->getEditInfoParams( $editInfo ), $params );
+			$params = array_merge( $params, $this->getEditInfoParams( $editInfo ) );
 		}
 
 		$params['token'] = $this->api->getToken();
