@@ -19,12 +19,27 @@ use Wikibase\DataModel\SiteLink;
 /**
  * @access private
  */
+/**
+ * A service for getting revisions of entities in Wikibase.
+ *
+ * @access private
+ */
 class RevisionGetter {
 
-	protected ActionApi $api;
+	/**
+	 * @var ActionApi
+	 */
+	protected $api;
 
-	protected Deserializer $entityDeserializer;
+	/**
+	 * @var Deserializer
+	 */
+	protected $entityDeserializer;
 
+	/**
+	 * @param ActionApi $api
+	 * @param Deserializer $entityDeserializer
+	 */
 	public function __construct( ActionApi $api, Deserializer $entityDeserializer ) {
 		$this->api = $api;
 		$this->entityDeserializer = $entityDeserializer;
@@ -32,35 +47,71 @@ class RevisionGetter {
 
 	/**
 	 * @param string|EntityId $id
+	 *
+	 * @return Revision|null
 	 */
 	public function getFromId( $id ): ?Revision {
+		return $this->getFromWikibaseEntityId( $id );
+	}
+
+	/**
+	 * @param SiteLink $siteLink
+	 *
+	 * @return Revision|null
+	 */
+	public function getFromSiteLink( SiteLink $siteLink ): ?Revision {
+		return $this->getFromWikibaseEntityId( $siteLink );
+	}
+
+	/**
+	 * @param string $siteId
+	 * @param string $title
+	 *
+	 * @return Revision|null
+	 */
+	public function getFromSiteAndTitle( string $siteId, string $title ): ?Revision {
+		return $this->getFromWikibaseEntityId( $siteId . ':' . $title );
+	}
+
+	/**
+	 * @param string|EntityId|SiteLink $id
+	 *
+	 * @return Revision|null
+	 */
+	private function getFromWikibaseEntityId( $id ): ?Revision {
+		$result = $this->api->request( ActionRequest::simpleGet(
+			'wbgetentities',
+			[ 'ids' => $this->getSerializedId( $id ) ]
+		) );
+
+		return $this->newRevisionFromResult( array_shift( $result['entities'] ) );
+	}
+
+	/**
+	 * @param string|EntityId|SiteLink $id
+	 *
+	 * @return string
+	 */
+	private function getSerializedId( $id ): string {
 		if ( $id instanceof EntityId ) {
-			$id = $id->getSerialization();
+			return $id->getSerialization();
 		}
 
-		$result = $this->api->request( ActionRequest::simpleGet( 'wbgetentities', [ 'ids' => $id ] ) );
-		return $this->newRevisionFromResult( array_shift( $result['entities'] ) );
+		if ( $id instanceof SiteLink ) {
+			return $id->getSiteId() . ':' . $id->getPageName();
+		}
+
+		return $id;
 	}
 
-	public function getFromSiteLink( SiteLink $siteLink ): ?Revision {
-		$result = $this->api->request( ActionRequest::simpleGet(
-			'wbgetentities',
-			[ 'sites' => $siteLink->getSiteId(), 'titles' => $siteLink->getPageName() ]
-		) );
-		return $this->newRevisionFromResult( array_shift( $result['entities'] ) );
-	}
-
-	public function getFromSiteAndTitle( string $siteId, string $title ): ?Revision {
-		$result = $this->api->request( ActionRequest::simpleGet(
-			'wbgetentities',
-			[ 'sites' => $siteId, 'titles' => $title ]
-		) );
-		return $this->newRevisionFromResult( array_shift( $result['entities'] ) );
-	}
-
+	/**
+	 * @param array $entityResult
+	 *
+	 * @return Revision|null
+	 */
 	private function newRevisionFromResult( array $entityResult ): ?Revision {
 		if ( array_key_exists( 'missing', $entityResult ) ) {
-			return null; // Throw an exception?
+			return null;
 		}
 
 		return new Revision(
@@ -77,8 +128,7 @@ class RevisionGetter {
 	 * @param Item|Property $entity
 	 *
 	 * @throws RuntimeException
-	 * @return ItemContent|PropertyContent|void
-	 * @todo this could be factored into a different class?
+	 * @return ItemContent|PropertyContent|Content
 	 */
 	private function getContentFromEntity( $entity ) {
 		switch ( $entity->getType() ) {
@@ -87,8 +137,7 @@ class RevisionGetter {
 			case Property::ENTITY_TYPE:
 				return new PropertyContent( $entity );
 			default:
-				// We can always create a default content object, we just dont know the model
-				return new Content( $entity, 'addwiki-unknown-wikibase-entity-content-' . $entity->getType() );
+				return new Content( $entity, 'unknown-wikibase-entity-content-' . $entity->getType() );
 		}
 	}
 
