@@ -117,7 +117,7 @@ class RevisionGetter {
 		return new Revision(
 			$this->getContentFromEntity( $this->entityDeserializer->deserialize( $entityResult ) ),
 			new PageIdentifier( null, (int)$entityResult['pageid'] ),
-			$entityResult['lastrevid'],
+			(int)$entityResult['lastrevid'],
 			null,
 			null,
 			$entityResult['modified']
